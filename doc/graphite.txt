@@ -1,0 +1,106 @@
+*graphite.txt*   For Neovim >= 0.9.0    Last change: 2026
+
+==============================================================================
+Table of Contents                                        *graphite-contents*
+
+1. Introduction                                          |graphite-intro|
+2. Installation                                          |graphite-install|
+3. Configuration                                         |graphite-config|
+4. Commands                                              |graphite-commands|
+5. Keybindings                                           |graphite-keys|
+6. Extending parsers                                     |graphite-extending|
+
+==============================================================================
+1. Introduction                                          *graphite-intro*
+
+graphite.nvim visualises the structure of your codebase as an interactive
+dependency graph inside Neovim — similar to Obsidian's graph view but for
+source code.
+
+It scans your project, detects import/require/use/mod statements (and
+optionally function calls via Tree-sitter), builds an in-memory graph, and
+renders it in a floating window you can navigate with the keyboard.
+
+Supported languages out of the box: Lua, JavaScript, TypeScript, Python, Rust.
+
+==============================================================================
+2. Installation                                          *graphite-install*
+
+With lazy.nvim: >lua
+    {
+      "username/graphite.nvim",
+      config = function()
+        require("graphite").setup()
+      end,
+    }
+<
+
+==============================================================================
+3. Configuration                                         *graphite-config*
+
+All options are optional. >lua
+    require("graphite").setup({
+      max_files       = 1000,
+      auto_refresh    = false,
+      layout          = "tree",
+      ignore_patterns = {
+        "node_modules", "%.git", "%.cache", "dist", "build", "vendor",
+      },
+    })
+<
+
+`max_files`       Maximum files to scan (default: 1000).
+`auto_refresh`    When true, :GraphiteOpen always rescans (default: false).
+`layout`          Layout algorithm — "tree" only for now (default: "tree").
+`ignore_patterns` Lua patterns for paths to exclude from scanning.
+
+==============================================================================
+4. Commands                                              *graphite-commands*
+
+:GraphiteOpen                                            *:GraphiteOpen*
+    Scan the current project and open the file-level dependency graph.
+
+:GraphiteRefresh                                         *:GraphiteRefresh*
+    Force a full rescan and re-render of the graph.
+
+:GraphiteFocus                                           *:GraphiteFocus*
+    Show a focused graph: the current file + files it imports + files that
+    import it.
+
+:GraphiteFunctions                                       *:GraphiteFunctions*
+    Show the function-level call graph (requires Tree-sitter grammars).
+    Install grammars with :TSInstall lua javascript typescript python rust
+
+:GraphiteDiagnose                                        *:GraphiteDiagnose*
+    Open a diagnostic report for the current buffer showing which Tree-sitter
+    query patterns matched and what they found. Useful for debugging.
+
+==============================================================================
+5. Keybindings (inside the graph window)                 *graphite-keys*
+
+    j / k       Move to the next / previous node
+    l           Jump to the first dependency of the selected node
+    h           Jump to the first node that imports the selected node
+    <Enter>     Open the selected file in the editor
+    q / <Esc>   Close the graph window
+
+==============================================================================
+6. Extending parsers                                     *graphite-extending*
+
+Register a custom file-dependency parser for any extension: >lua
+    require("graphite.parser").register("go", function(content, file_path, root)
+      local deps = {}
+      for pkg in content:gmatch('"([^"]+)"') do
+        table.insert(deps, pkg)
+      end
+      return deps
+    end)
+<
+
+Register a custom Tree-sitter language alias: >lua
+    -- Already handled internally, but you can override EXT_TO_LANG if needed.
+    require("graphite.treesitter").EXT_TO_LANG["svelte"] = "html"
+<
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:
