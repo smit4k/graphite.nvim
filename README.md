@@ -1,45 +1,17 @@
-# graphite.nvim
-
-![Lua](https://img.shields.io/badge/Made%20with%20Lua-blueviolet.svg?style=for-the-badge&logo=lua)
-![Neovim](https://img.shields.io/badge/Neovim%200.9+-green.svg?style=for-the-badge&logo=neovim)
-
-**graphite.nvim** visualises the structure of your codebase as an interactive
-dependency graph inside Neovim — think Obsidian's graph view, but for source
-code.
-
-It scans your project, detects `import` / `require` / `use` / `mod` statements,
-builds an in-memory dependency graph, and renders it in a floating window you
-can navigate with your keyboard.
-
----
-
-## Screenshot
-
-```
-  graphite.nvim  ·  Nodes: 5  Edges: 4
-  [Enter] open file   [q] close   [j/k] prev/next node   [h/l] parent/child
-  ────────────────────────────────────────────────────────────────────────
-  ◆ init.lua  → 2 deps
-    ├─→  graph.lua
-    └─→  ui.lua
-
-  ◆ graph.lua  → 2 deps
-    ├─→  util.lua
-    └─→  parser.lua
-
-  ◆ ui.lua  → 1 dep
-    └─→  renderer.lua
-
-  ◆ util.lua
-  ◆ parser.lua
-  ◆ renderer.lua
-```
-
----
+<h1 align='center'>
+    graphite.nvim
+</h1>
+<p align='center'>
+  <b>Visualize the structure of your codebase as an interactive dependency graph inside of Neovim — like Obsidian's graph view but for Neovim!</b>
+</p>
 
 ## Installation
 
-### [lazy.nvim](https://github.com/folke/lazy.nvim)
+Prerequisites: Neovim >= 0.90
+
+Use your favorite package manager!
+
+Ex. using lazy.nvim
 
 ```lua
 {
@@ -49,19 +21,6 @@ can navigate with your keyboard.
   end,
 }
 ```
-
-### [packer.nvim](https://github.com/wbthomason/packer.nvim)
-
-```lua
-use {
-  "username/graphite.nvim",
-  config = function()
-    require("graphite").setup()
-  end,
-}
-```
-
----
 
 ## Configuration
 
@@ -86,53 +45,35 @@ require("graphite").setup({
 })
 ```
 
----
-
 ## Commands
 
-| Command | Description |
-|---|---|
-| `:GraphiteOpen` | Scan the project and open the graph window |
-| `:GraphiteRefresh` | Force a full rescan and re-render |
-| `:GraphiteFocus` | Show only the current file and its direct neighbours |
+| Command              | Description                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| `:GraphiteOpen`      | Scan the project and open the graph window                         |
+| `:GraphiteRefresh`   | Force a full rescan and re-render                                  |
+| `:GraphiteFocus`     | Show only the current file and its direct neighbours               |
 | `:GraphiteFunctions` | Show the function-level call graph (requires Tree-sitter grammars) |
-
----
 
 ## Keybindings (inside the graph window)
 
-| Key | Action |
-|---|---|
-| `j` / `k` | Move to the next / previous node |
-| `l` | Jump to the first dependency of the selected node |
-| `h` | Jump to the first node that imports the selected node |
-| `<Enter>` | Open the selected file in the editor |
-| `q` / `<Esc>` | Close the graph window |
-
----
+| Key           | Action                                                |
+| ------------- | ----------------------------------------------------- |
+| `j` / `k`     | Move to the next / previous node                      |
+| `l`           | Jump to the first dependency of the selected node     |
+| `h`           | Jump to the first node that imports the selected node |
+| `<Enter>`     | Open the selected file in the editor                  |
+| `q` / `<Esc>` | Close the graph window                                |
 
 ## Supported Languages
 
-| Language | Detected patterns |
-|---|---|
-| **Lua** | `require("module")` |
+| Language                    | Detected patterns                   |
+| --------------------------- | ----------------------------------- |
+| **Lua**                     | `require("module")`                 |
 | **JavaScript / TypeScript** | `import … from "…"`, `require("…")` |
-| **Python** | `import foo`, `from foo import bar` |
-| **Rust** | `mod name;`, `use crate::…` |
+| **Python**                  | `import foo`, `from foo import bar` |
+| **Rust**                    | `mod name;`, `use crate::…`         |
 
-### Adding a custom language
-
-```lua
-require("graphite.parser").register("go", function(content, file_path, root)
-  local deps = {}
-  for pkg in content:gmatch('"([^"]+)"') do
-    table.insert(deps, pkg)
-  end
-  return deps
-end)
-```
-
----
+This plugin is in its early stages, expect support for more languages soon
 
 ## How It Works
 
@@ -168,8 +109,3 @@ plugin/
 ```
 
 ---
-
-## Requirements
-
-- Neovim **0.9+**
-- No external dependencies
