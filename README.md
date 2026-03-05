@@ -7,11 +7,9 @@
 
 ## Installation
 
-Prerequisites: Neovim >= 0.90
+**Prerequisites**: Neovim >= 0.90
 
 Use your favorite package manager!
-
-Ex. using lazy.nvim
 
 ```lua
 {
