@@ -3,6 +3,8 @@
 </h1>
 <p align='center'>
   <b>Visualize the structure of your codebase as an interactive dependency graph inside Neovim.</b>
+    <br>
+    <b>⚠️ Highly experimental plugin, expect bugs and changes.</b>
 </p>
 
 ## Installation
