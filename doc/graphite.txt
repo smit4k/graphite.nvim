@@ -20,7 +20,8 @@ It scans your project, detects import/require/use/mod statements (and
 optionally function calls via Tree-sitter), builds an in-memory graph, and
 renders it in a floating window you can navigate with the keyboard.
 
-Supported languages out of the box: Lua, JavaScript, TypeScript, Python, Rust.
+Supported languages out of the box: Lua, JavaScript, TypeScript, Python, Rust,
+Go, Java, Kotlin, Scala, Ruby, PHP, C#, Swift, Zig, C/C++, Elixir.
 
 ==============================================================================
 2. Installation                                          *graphite-install*
@@ -68,7 +69,9 @@ All options are optional. >lua
 
 :GraphiteFunctions                                       *:GraphiteFunctions*
     Show the function-level call graph (requires Tree-sitter grammars).
-    Install grammars with :TSInstall lua javascript typescript python rust
+    Install grammars with:
+    :TSInstall lua javascript typescript python rust go java kotlin ruby php
+    c_sharp swift zig c cpp elixir scala
 
 :GraphiteDiagnose                                        *:GraphiteDiagnose*
     Open a diagnostic report for the current buffer showing which Tree-sitter

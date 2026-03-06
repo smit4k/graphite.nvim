@@ -2,6 +2,7 @@ local util = require("graphite.util")
 local parser = require("graphite.parser")
 local graph = require("graphite.graph")
 local renderer = require("graphite.renderer")
+local treesitter = require("graphite.treesitter")
 
 -- ── util ──────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,74 @@ describe("parser.parsers.js", function()
   end)
 end)
 
+describe("parser.parsers.go", function()
+  it("extracts single and grouped imports", function()
+    local deps = parser.parsers.go('import "fmt"\nimport (\n  "my/app/pkg"\n)')
+    assert.truthy(vim.tbl_contains(deps, "fmt"))
+    assert.truthy(vim.tbl_contains(deps, "my/app/pkg"))
+  end)
+end)
+
+describe("parser.parsers.java/kt/scala/cs/swift", function()
+  it("extracts dotted imports/usings", function()
+    local deps = parser.parsers.java("import a.b.C;\nimport static d.e.F;\n")
+    assert.truthy(vim.tbl_contains(deps, "a.b.C"))
+    assert.truthy(vim.tbl_contains(deps, "d.e.F"))
+
+    deps = parser.parsers.kt("import foo.bar.Baz as B\n")
+    assert.truthy(vim.tbl_contains(deps, "foo.bar.Baz"))
+
+    deps = parser.parsers.cs("using System.Text;\nglobal using My.App.Core;\n")
+    assert.truthy(vim.tbl_contains(deps, "System.Text"))
+    assert.truthy(vim.tbl_contains(deps, "My.App.Core"))
+  end)
+end)
+
+describe("parser.parsers.rb", function()
+  it("extracts require and require_relative", function()
+    local deps = parser.parsers.rb('require "json"\nrequire_relative "../lib/foo"')
+    assert.truthy(vim.tbl_contains(deps, "json"))
+    assert.truthy(vim.tbl_contains(deps, "../lib/foo"))
+  end)
+end)
+
+describe("parser.parsers.php", function()
+  it("extracts use and include/require", function()
+    local deps = parser.parsers.php([[use App\Foo\Bar;
+      require_once "bootstrap.php";
+      include "partials/header.php";]])
+    assert.truthy(vim.tbl_contains(deps, "App\\Foo\\Bar"))
+    assert.truthy(vim.tbl_contains(deps, "bootstrap.php"))
+    assert.truthy(vim.tbl_contains(deps, "partials/header.php"))
+  end)
+end)
+
+describe("parser.parsers.zig", function()
+  it("extracts @import calls", function()
+    local deps = parser.parsers.zig('const std = @import("std");\nconst a = @import("./a.zig");')
+    assert.truthy(vim.tbl_contains(deps, "std"))
+    assert.truthy(vim.tbl_contains(deps, "./a.zig"))
+  end)
+end)
+
+describe("parser.parsers.c/cpp", function()
+  it("extracts includes", function()
+    local deps = parser.parsers.c('#include "app.h"\n#include <vector>')
+    assert.truthy(vim.tbl_contains(deps, "app.h"))
+    assert.truthy(vim.tbl_contains(deps, "vector"))
+  end)
+end)
+
+describe("parser.parsers.ex", function()
+  it("extracts alias/import/require/use", function()
+    local deps = parser.parsers.ex("alias MyApp.Repo\nimport Ecto.Query\nrequire Logger\nuse Phoenix.Controller\n")
+    assert.truthy(vim.tbl_contains(deps, "MyApp.Repo"))
+    assert.truthy(vim.tbl_contains(deps, "Ecto.Query"))
+    assert.truthy(vim.tbl_contains(deps, "Logger"))
+    assert.truthy(vim.tbl_contains(deps, "Phoenix.Controller"))
+  end)
+end)
+
 describe("parser.register", function()
   it("allows registering a custom parser", function()
     parser.register("xyz", function(content)
@@ -65,6 +134,65 @@ describe("parser.register", function()
     end)
     assert.not_nil(parser.parsers.xyz)
     assert.same({ "custom_dep" }, parser.parsers.xyz("anything"))
+  end)
+end)
+
+describe("treesitter.extract fallback", function()
+  local function with_missing_ts_parser(fn)
+    local original = vim.treesitter.get_string_parser
+    vim.treesitter.get_string_parser = function()
+      error("missing parser")
+    end
+    local ok, err = pcall(fn)
+    vim.treesitter.get_string_parser = original
+    assert.truthy(ok, err)
+  end
+
+  local function write_temp(ext, content)
+    local path = vim.fn.tempname() .. "." .. ext
+    local f = assert(io.open(path, "w"))
+    f:write(content)
+    f:close()
+    return path
+  end
+
+  it("extracts Java defs/calls via regex fallback", function()
+    with_missing_ts_parser(function()
+      local path = write_temp(
+        "java",
+        [[class A {
+  void alpha() { beta(); }
+  void beta() {}
+}]]
+      )
+      local info = treesitter.extract(path)
+      os.remove(path)
+      assert.truthy(info)
+      assert.truthy(vim.tbl_contains(info.defs, "alpha"))
+      assert.truthy(vim.tbl_contains(info.defs, "beta"))
+      assert.truthy(info.calls_by_func.alpha)
+    end)
+  end)
+
+  it("extracts Elixir defs via regex fallback", function()
+    with_missing_ts_parser(function()
+      local path = write_temp(
+        "ex",
+        [[defmodule A do
+  def alpha do
+    beta()
+  end
+
+  defp beta do
+  end
+end]]
+      )
+      local info = treesitter.extract(path)
+      os.remove(path)
+      assert.truthy(info)
+      assert.truthy(vim.tbl_contains(info.defs, "alpha"))
+      assert.truthy(vim.tbl_contains(info.defs, "beta"))
+    end)
   end)
 end)
 
@@ -147,7 +275,11 @@ describe("renderer.render", function()
   it("does not render transitive edges as direct edges in graph routing", function()
     local g = {
       nodes = {
-        ["01_init.lua"] = { path = "/01_init.lua", label = "01_init.lua", deps = { "06_graph.lua", "07_ui.lua", "10_ts.lua" } },
+        ["01_init.lua"] = {
+          path = "/01_init.lua",
+          label = "01_init.lua",
+          deps = { "06_graph.lua", "07_ui.lua", "10_ts.lua" },
+        },
         ["06_graph.lua"] = { path = "/06_graph.lua", label = "06_graph.lua", deps = { "08_parser.lua" } },
         ["07_ui.lua"] = { path = "/07_ui.lua", label = "07_ui.lua", deps = {} },
         ["08_parser.lua"] = { path = "/08_parser.lua", label = "08_parser.lua", deps = {} },

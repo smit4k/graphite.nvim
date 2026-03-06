@@ -31,6 +31,22 @@ local SUPPORTED_EXTS = {
   jsx = true,
   py = true,
   rs = true,
+  go = true,
+  java = true,
+  kt = true,
+  kts = true,
+  rb = true,
+  php = true,
+  cs = true,
+  swift = true,
+  zig = true,
+  c = true,
+  h = true,
+  cpp = true,
+  hpp = true,
+  ex = true,
+  exs = true,
+  scala = true,
 }
 
 --- Resolve a raw dependency identifier to a relative file path that exists in the
@@ -41,7 +57,33 @@ local SUPPORTED_EXTS = {
 ---@return string|nil
 local function resolve_dep(dep, from_file, file_index)
   local from_dir = from_file:match("^(.*)/[^/]+$") or ""
-  local exts = { "lua", "js", "ts", "tsx", "jsx", "py", "rs", "mjs", "cjs" }
+  local exts = {
+    "lua",
+    "js",
+    "ts",
+    "tsx",
+    "jsx",
+    "py",
+    "rs",
+    "mjs",
+    "cjs",
+    "go",
+    "java",
+    "kt",
+    "kts",
+    "rb",
+    "php",
+    "cs",
+    "swift",
+    "zig",
+    "c",
+    "h",
+    "cpp",
+    "hpp",
+    "ex",
+    "exs",
+    "scala",
+  }
 
   -- Normalize a candidate path (collapse .. and .)
   local function normalize(raw)
@@ -70,8 +112,8 @@ local function resolve_dep(dep, from_file, file_index)
     table.insert(candidates, base) -- dep already has an extension
   else
     -- Absolute / module-style import
-    -- Convert separators: Lua dots, Rust colons -> slashes
-    local as_path = dep:gsub("::", "/"):gsub("%.", "/")
+    -- Convert separators used in common module systems.
+    local as_path = dep:gsub("::", "/"):gsub("%.", "/"):gsub("\\", "/")
 
     -- Try various root-relative prefixes
     local prefixes = { "", "lua/", "src/", "lib/" }

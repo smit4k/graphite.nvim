@@ -72,6 +72,14 @@ require("graphite").setup({
 | **JavaScript / TypeScript** | `import … from "…"`, `require("…")` |
 | **Python**                  | `import foo`, `from foo import bar` |
 | **Rust**                    | `mod name;`, `use crate::…`         |
+| **Go**                      | `import "…"`, `import ( … )`        |
+| **Java / Kotlin / Scala**   | `import a.b.C`                       |
+| **Ruby**                    | `require`, `require_relative`        |
+| **PHP**                     | `use Foo\Bar`, `require/include`     |
+| **C# / Swift**              | `using` / `import`                   |
+| **Zig**                     | `@import("…")`                       |
+| **C / C++**                 | `#include "…"`, `#include <…>`       |
+| **Elixir**                  | `alias/import/require/use`           |
 
 This plugin is in its early stages, expect support for more languages soon
 

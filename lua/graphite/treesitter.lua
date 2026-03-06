@@ -12,26 +12,56 @@ local M = {}
 -- Primary extension -> TS language name.
 local EXT_TO_LANG = {
   lua = "lua",
-  js  = "javascript",
+  js = "javascript",
   mjs = "javascript",
   cjs = "javascript",
   jsx = "javascript",
-  ts  = "typescript",
+  ts = "typescript",
   tsx = "tsx",
-  py  = "python",
-  rs  = "rust",
+  py = "python",
+  rs = "rust",
+  go = "go",
+  java = "java",
+  kt = "kotlin",
+  kts = "kotlin",
+  rb = "ruby",
+  php = "php",
+  cs = "c_sharp",
+  swift = "swift",
+  zig = "zig",
+  c = "c",
+  h = "c",
+  cpp = "cpp",
+  hpp = "cpp",
+  ex = "elixir",
+  exs = "elixir",
+  scala = "scala",
 }
 
 -- Fallback language names tried in order when the primary fails.
 local LANG_ALIASES = {
-  tsx       = { "typescriptreact", "typescript" },
-  jsx       = { "javascriptreact", "javascript" },
+  tsx = { "typescriptreact", "typescript" },
+  jsx = { "javascriptreact", "javascript" },
   typescript = { "typescript" },
   javascript = { "javascript" },
-  lua        = { "lua" },
-  python     = { "python" },
-  rust       = { "rust" },
+  lua = { "lua" },
+  python = { "python" },
+  rust = { "rust" },
+  go = { "go" },
+  java = { "java" },
+  kotlin = { "kotlin" },
+  ruby = { "ruby" },
+  php = { "php" },
+  c_sharp = { "c_sharp", "c-sharp" },
+  swift = { "swift" },
+  zig = { "zig" },
+  c = { "c" },
+  cpp = { "cpp" },
+  elixir = { "elixir" },
+  scala = { "scala" },
 }
+
+M.EXT_TO_LANG = EXT_TO_LANG
 
 -- ── Query patterns ────────────────────────────────────────────────────────────
 -- Each language maps to a *list* of single-pattern query strings.
@@ -59,6 +89,50 @@ local DEF_PATTERNS = {
   },
   rust = {
     "(function_item name: (identifier) @def)",
+  },
+  go = {
+    "(function_declaration name: (identifier) @def)",
+    "(method_declaration name: (field_identifier) @def)",
+  },
+  java = {
+    "(method_declaration name: (identifier) @def)",
+    "(constructor_declaration name: (identifier) @def)",
+  },
+  kotlin = {
+    "(function_declaration name: (simple_identifier) @def)",
+    "(function_declaration name: (identifier) @def)",
+  },
+  ruby = {
+    "(method name: (identifier) @def)",
+    "(singleton_method name: (identifier) @def)",
+  },
+  php = {
+    "(function_definition name: (name) @def)",
+    "(method_declaration name: (name) @def)",
+  },
+  c_sharp = {
+    "(method_declaration name: (identifier) @def)",
+    "(constructor_declaration name: (identifier) @def)",
+    "(local_function_statement name: (identifier) @def)",
+  },
+  swift = {
+    "(function_declaration name: (simple_identifier) @def)",
+  },
+  zig = {
+    "(function_declaration name: (identifier) @def)",
+  },
+  c = {
+    "(function_definition declarator: (function_declarator declarator: (identifier) @def))",
+  },
+  cpp = {
+    "(function_definition declarator: (function_declarator declarator: (identifier) @def))",
+    "(function_definition declarator: (function_declarator declarator: (field_identifier) @def))",
+  },
+  elixir = {
+    '(call target: (identifier) @kind arguments: (arguments (identifier) @def) (#match? @kind "^(def|defp|defmacro)$"))',
+  },
+  scala = {
+    "(function_definition name: (identifier) @def)",
   },
 }
 DEF_PATTERNS.tsx = DEF_PATTERNS.typescript
@@ -90,6 +164,53 @@ local CALL_PATTERNS = {
     "(call_expression function: (identifier) @call)",
     "(call_expression function: (scoped_identifier name: (identifier) @call))",
   },
+  go = {
+    "(call_expression function: (identifier) @call)",
+    "(call_expression function: (selector_expression field: (field_identifier) @call))",
+  },
+  java = {
+    "(method_invocation name: (identifier) @call)",
+  },
+  kotlin = {
+    "(call_expression (simple_identifier) @call)",
+    "(call_expression (identifier) @call)",
+  },
+  ruby = {
+    "(call method: (identifier) @call)",
+    "(command method: (identifier) @call)",
+    "(command_call method: (identifier) @call)",
+  },
+  php = {
+    "(function_call_expression function: (name) @call)",
+    "(member_call_expression name: (name) @call)",
+    "(scoped_call_expression name: (name) @call)",
+  },
+  c_sharp = {
+    "(invocation_expression expression: (identifier) @call)",
+    "(invocation_expression expression: (member_access_expression name: (identifier) @call))",
+  },
+  swift = {
+    "(call_expression called_expression: (simple_identifier) @call)",
+  },
+  zig = {
+    "(function_call_expression function: (identifier) @call)",
+    "(function_call_expression function: (field_access_expression field: (identifier) @call))",
+  },
+  c = {
+    "(call_expression function: (identifier) @call)",
+    "(call_expression function: (field_expression field: (field_identifier) @call))",
+  },
+  cpp = {
+    "(call_expression function: (identifier) @call)",
+    "(call_expression function: (field_expression field: (field_identifier) @call))",
+    "(call_expression function: (qualified_identifier name: (identifier) @call))",
+  },
+  elixir = {
+    '(call target: (identifier) @call (#not-match? @call "^(def|defp|defmacro|if|case|cond|with|for|fn|quote)$"))',
+  },
+  scala = {
+    "(call_expression function: (identifier) @call)",
+  },
 }
 CALL_PATTERNS.tsx = CALL_PATTERNS.typescript
 CALL_PATTERNS.typescriptreact = CALL_PATTERNS.typescript
@@ -97,11 +218,29 @@ CALL_PATTERNS.javascriptreact = CALL_PATTERNS.javascript
 
 -- ── Node types that mark a function boundary (for parent-chain walk) ──────────
 local FUNC_NODE_TYPES = {
-  lua        = { function_declaration=true, local_function=true, function_definition=true },
-  javascript = { function_declaration=true, function_expression=true, arrow_function=true, method_definition=true },
-  typescript = { function_declaration=true, function_expression=true, arrow_function=true, method_definition=true, function_signature=true },
-  python     = { function_definition=true },
-  rust       = { function_item=true },
+  lua = { function_declaration = true, local_function = true, function_definition = true },
+  javascript = { function_declaration = true, function_expression = true, arrow_function = true, method_definition = true },
+  typescript = {
+    function_declaration = true,
+    function_expression = true,
+    arrow_function = true,
+    method_definition = true,
+    function_signature = true,
+  },
+  python = { function_definition = true },
+  rust = { function_item = true },
+  go = { function_declaration = true, method_declaration = true },
+  java = { method_declaration = true, constructor_declaration = true },
+  kotlin = { function_declaration = true },
+  ruby = { method = true, singleton_method = true },
+  php = { function_definition = true, method_declaration = true },
+  c_sharp = { method_declaration = true, constructor_declaration = true, local_function_statement = true },
+  swift = { function_declaration = true },
+  zig = { function_declaration = true },
+  c = { function_definition = true },
+  cpp = { function_definition = true },
+  elixir = { call = true },
+  scala = { function_definition = true },
 }
 FUNC_NODE_TYPES.tsx = FUNC_NODE_TYPES.typescript
 FUNC_NODE_TYPES.typescriptreact = FUNC_NODE_TYPES.typescript
@@ -162,16 +301,142 @@ local function containing_func_node(node, func_types)
 end
 
 --- Return the function name from a function-definition node.
---- Tries the first identifier / property_identifier named child.
+--- Tries common identifier-like named child node types used across grammars.
 local function func_node_name(func_node, source)
   for i = 0, func_node:named_child_count() - 1 do
     local child = func_node:named_child(i)
     local t = child:type()
-    if t == "identifier" or t == "property_identifier" then
+    if
+      t == "identifier"
+      or t == "property_identifier"
+      or t == "field_identifier"
+      or t == "simple_identifier"
+      or t == "name"
+    then
       return vim.treesitter.get_node_text(child, source)
     end
   end
   return nil
+end
+
+local function iter_lines(source)
+  return (source .. "\n"):gmatch("([^\n]*)\n")
+end
+
+local CALL_KEYWORDS = {
+  ["if"] = true,
+  ["for"] = true,
+  ["while"] = true,
+  ["switch"] = true,
+  ["case"] = true,
+  ["catch"] = true,
+  ["return"] = true,
+  ["new"] = true,
+  ["function"] = true,
+  ["def"] = true,
+  ["defp"] = true,
+  ["defmacro"] = true,
+  ["fn"] = true,
+  ["class"] = true,
+  ["interface"] = true,
+  ["struct"] = true,
+  ["enum"] = true,
+  ["do"] = true,
+  ["end"] = true,
+}
+
+local function fallback_regex_extract(source, ext)
+  local defs_set = {}
+  local calls_set = {}
+
+  local function add_def(name)
+    if name and name ~= "" then
+      defs_set[name] = true
+    end
+  end
+
+  local function add_calls_from_source(text)
+    for name in text:gmatch("([%a_][%w_]*)%s*%(") do
+      if not CALL_KEYWORDS[name] then
+        calls_set[name] = true
+      end
+    end
+  end
+
+  if ext == "go" then
+    for line in iter_lines(source) do
+      add_def(line:match("^%s*func%s+([%a_][%w_]*)%s*%("))
+      add_def(line:match("^%s*func%s*%b()%s*([%a_][%w_]*)%s*%("))
+    end
+  elseif ext == "java" or ext == "kt" or ext == "kts" or ext == "scala" or ext == "cs" or ext == "swift" then
+    for line in iter_lines(source) do
+      local def = line:match("([%a_][%w_]*)%s*%b()%s*{")
+      if def and not CALL_KEYWORDS[def] and not line:match("^%s*[%a_][%w_]*%s*[%{%[]?%s*$") then
+        add_def(def)
+      end
+    end
+  elseif ext == "rb" then
+    for line in iter_lines(source) do
+      local def = line:match("^%s*def%s+([%w_%.!?]+)")
+      if def then
+        add_def((def:match("([%w_!?]+)$")))
+      end
+    end
+  elseif ext == "php" then
+    for line in iter_lines(source) do
+      add_def(line:match("^%s*function%s+([%a_][%w_]*)%s*%("))
+    end
+  elseif ext == "zig" then
+    for line in iter_lines(source) do
+      add_def(line:match("^%s*pub%s+fn%s+([%a_][%w_]*)%s*%("))
+      add_def(line:match("^%s*fn%s+([%a_][%w_]*)%s*%("))
+    end
+  elseif ext == "c" or ext == "h" or ext == "cpp" or ext == "hpp" then
+    for line in iter_lines(source) do
+      local def = line:match("([%a_][%w_]*)%s*%b()%s*{")
+      if def and not CALL_KEYWORDS[def] then
+        add_def(def)
+      end
+    end
+  elseif ext == "ex" or ext == "exs" then
+    for line in iter_lines(source) do
+      add_def(line:match("^%s*defp?%s+([%a_][%w_!?]*)%s*%("))
+      add_def(line:match("^%s*defmacro%s+([%a_][%w_!?]*)%s*%("))
+      add_def(line:match("^%s*defp?%s+([%a_][%w_!?]*)%s+do%s*$"))
+    end
+  else
+    return nil
+  end
+
+  add_calls_from_source(source)
+
+  local defs = {}
+  for name in pairs(defs_set) do
+    table.insert(defs, name)
+  end
+  table.sort(defs)
+  if #defs == 0 then
+    return nil
+  end
+
+  local calls = {}
+  for name in pairs(calls_set) do
+    table.insert(calls, name)
+  end
+  table.sort(calls)
+
+  local calls_by_func = {}
+  for _, def in ipairs(defs) do
+    local per_func_calls = {}
+    for _, callee in ipairs(calls) do
+      if callee ~= def then
+        table.insert(per_func_calls, callee)
+      end
+    end
+    calls_by_func[def] = per_func_calls
+  end
+
+  return { defs = defs, calls_by_func = calls_by_func }
 end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
@@ -200,11 +465,12 @@ M.extract = function(file_path)
   if source == "" then
     return { defs = {}, calls_by_func = {} }
   end
+  local fallback = fallback_regex_extract(source, ext)
 
   -- Resolve the actual TS language (handles aliases like tsx/typescriptreact)
   local ts_parser, lang = get_parser(source, primary_lang)
   if not ts_parser or not lang then
-    return nil
+    return fallback
   end
 
   local ok_t, trees = pcall(function()
@@ -227,6 +493,9 @@ M.extract = function(file_path)
       def_set[r.text] = true
       table.insert(defs, r.text)
     end
+  end
+  if #defs == 0 and fallback then
+    return fallback
   end
 
   -- ── 2. Collect calls and map each to its containing function ──────────────
@@ -258,6 +527,10 @@ M.extract = function(file_path)
     calls_by_func[fname] = list
   end
 
+  if next(calls_by_func) == nil and fallback then
+    return fallback
+  end
+
   return { defs = defs, calls_by_func = calls_by_func }
 end
 
@@ -282,11 +555,15 @@ M.diagnose = function(file_path)
 
   local ts_parser, lang = get_parser(source, primary_lang)
   if not ts_parser then
-    return ("No Tree-sitter parser available for '%s' (tried aliases too). "
-      .. "Run :TSInstall %s"):format(primary_lang, primary_lang)
+    return ("No Tree-sitter parser available for '%s' (tried aliases too). " .. "Run :TSInstall %s"):format(
+      primary_lang,
+      primary_lang
+    )
   end
 
-  local ok_t, trees = pcall(function() return ts_parser:parse() end)
+  local ok_t, trees = pcall(function()
+    return ts_parser:parse()
+  end)
   if not ok_t or not trees or not trees[1] then
     return "Parser found but tree:parse() failed for: " .. file_path
   end

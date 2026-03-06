@@ -30,7 +30,10 @@ M.setup = function(opts)
   M.config = vim.tbl_deep_extend("force", defaults, opts or {})
   if M.config.layout ~= "tree" and M.config.layout ~= "graph" then
     vim.notify(
-      string.format("graphite: unknown layout '%s' (expected 'tree' or 'graph'); falling back to 'tree'", M.config.layout),
+      string.format(
+        "graphite: unknown layout '%s' (expected 'tree' or 'graph'); falling back to 'tree'",
+        M.config.layout
+      ),
       vim.log.levels.WARN
     )
     M.config.layout = "tree"
@@ -53,10 +56,7 @@ M.open = function()
     for _ in pairs(g.nodes) do
       node_count = node_count + 1
     end
-    vim.notify(
-      string.format("graphite: found %d files, %d edges", node_count, #g.edges),
-      vim.log.levels.INFO
-    )
+    vim.notify(string.format("graphite: found %d files, %d edges", node_count, #g.edges), vim.log.levels.INFO)
   end
 
   ui.open(g, M.config)
@@ -72,10 +72,7 @@ M.refresh = function()
   for _ in pairs(g.nodes) do
     node_count = node_count + 1
   end
-  vim.notify(
-    string.format("graphite: %d files, %d edges", node_count, #g.edges),
-    vim.log.levels.INFO
-  )
+  vim.notify(string.format("graphite: %d files, %d edges", node_count, #g.edges), vim.log.levels.INFO)
   ui.open(g, M.config)
 end
 
@@ -151,17 +148,15 @@ M.open_functions = function()
 
   if func_count == 0 then
     vim.notify(
-      "graphite: no functions found. Make sure Tree-sitter grammars are installed"
-        .. " (:TSInstall lua javascript typescript python rust)",
+      "graphite: no functions found. Make sure Tree-sitter grammars are installed "
+        .. "(:TSInstall lua javascript typescript python rust go java kotlin ruby php "
+        .. "c_sharp swift zig c cpp elixir scala)",
       vim.log.levels.WARN
     )
     return
   end
 
-  vim.notify(
-    string.format("graphite: %d functions, %d calls", func_count, #fg.edges),
-    vim.log.levels.INFO
-  )
+  vim.notify(string.format("graphite: %d functions, %d calls", func_count, #fg.edges), vim.log.levels.INFO)
   ui.open(fg, M.config)
 end
 
