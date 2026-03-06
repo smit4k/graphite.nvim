@@ -2,7 +2,7 @@
     graphite.nvim
 </h1>
 <p align='center'>
-  <b>Visualize the structure of your codebase as an interactive dependency graph inside of Neovim — like Obsidian's graph view but for Neovim!</b>
+  <b>Visualize the structure of your codebase as an interactive dependency graph inside Neovim.</b>
 </p>
 
 ## Installation
@@ -32,8 +32,9 @@ require("graphite").setup({
   -- When true, :GraphiteOpen always rescans instead of reusing the cache
   auto_refresh = false,
 
-  -- Layout algorithm.  "tree" is the only option right now;
-  -- a force-directed layout is planned.
+  -- Layout algorithm:
+  -- "tree"      -> hierarchical ASCII list
+  -- "graph"     -> routed graph view + node list
   layout = "tree",
 
   -- Lua patterns for paths that should be excluded from scanning
@@ -59,6 +60,7 @@ require("graphite").setup({
 | `j` / `k`     | Move to the next / previous node                      |
 | `l`           | Jump to the first dependency of the selected node     |
 | `h`           | Jump to the first node that imports the selected node |
+| `t`           | Toggle layout (`tree` ↔ `graph`)                      |
 | `<Enter>`     | Open the selected file in the editor                  |
 | `q` / `<Esc>` | Close the graph window                                |
 
@@ -82,9 +84,9 @@ This plugin is in its early stages, expect support for more languages soon
 3. **Resolve** — `graph.build` maps each identifier to an actual project file
    (handles Lua dot-paths, JS relative paths, Python dotted modules, Rust mod
    names, etc.).
-4. **Render** — `renderer.render` assigns BFS layers, produces an ASCII tree
-   listing with `◆` markers per node, and returns a position map used for
-   navigation.
+4. **Render** — `renderer.render` assigns BFS layers and renders either a
+   tree view (`layout = "tree"`) or a routed graph view (`layout = "graph"`),
+   returning a node-position map for navigation.
 5. **Display** — `ui.open` creates a rounded floating window, applies syntax
    highlights, and wires up keyboard navigation.
 
