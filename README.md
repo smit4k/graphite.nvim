@@ -13,7 +13,7 @@ Use your favorite package manager!
 
 ```lua
 {
-  "username/graphite.nvim",
+  "smit4k/graphite.nvim",
   config = function()
     require("graphite").setup()
   end,
