@@ -9,7 +9,7 @@ local M = {}
 ---@class GraphiteConfig
 ---@field max_files number        Maximum files to scan (default: 1000)
 ---@field auto_refresh boolean    Re-scan on :GraphiteOpen if graph exists (default: false)
----@field layout string           Layout algorithm – "tree" only for now (default: "tree")
+---@field layout string           Layout algorithm – "tree" or "graph" (default: "tree")
 ---@field ignore_patterns string[] Lua patterns for paths to exclude from scanning
 
 --- Default configuration values.
@@ -28,6 +28,13 @@ M.config = vim.deepcopy(defaults)
 ---@param opts GraphiteConfig?
 M.setup = function(opts)
   M.config = vim.tbl_deep_extend("force", defaults, opts or {})
+  if M.config.layout ~= "tree" and M.config.layout ~= "graph" then
+    vim.notify(
+      string.format("graphite: unknown layout '%s' (expected 'tree' or 'graph'); falling back to 'tree'", M.config.layout),
+      vim.log.levels.WARN
+    )
+    M.config.layout = "tree"
+  end
 end
 
 --- Scan the current project and open the graph window.
@@ -52,7 +59,7 @@ M.open = function()
     )
   end
 
-  ui.open(g)
+  ui.open(g, M.config)
 end
 
 --- Force a full rescan and re-render.
@@ -69,7 +76,7 @@ M.refresh = function()
     string.format("graphite: %d files, %d edges", node_count, #g.edges),
     vim.log.levels.INFO
   )
-  ui.open(g)
+  ui.open(g, M.config)
 end
 
 --- Show a focused graph for the file in the active buffer.
@@ -118,7 +125,7 @@ M.focus = function()
     string.format("graphite: focused on %s (%d neighbours)", vim.fn.fnamemodify(rel, ":t"), focused_count - 1),
     vim.log.levels.INFO
   )
-  ui.open(focused)
+  ui.open(focused, M.config)
 end
 
 --- Build and display the function-level call graph.
@@ -155,7 +162,7 @@ M.open_functions = function()
     string.format("graphite: %d functions, %d calls", func_count, #fg.edges),
     vim.log.levels.INFO
   )
-  ui.open(fg)
+  ui.open(fg, M.config)
 end
 
 --- Print a Tree-sitter diagnostic report for the current buffer's file.

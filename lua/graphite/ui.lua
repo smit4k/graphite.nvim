@@ -8,6 +8,7 @@ local M = {}
 local _win = nil -- window handle
 local _buf = nil -- buffer handle
 local _graph = nil -- currently displayed GraphData
+local _config = nil -- active GraphiteConfig
 local _node_positions = {} -- key -> NodePosition
 local _navigable = {} -- ordered list of NodePosition (sorted by row)
 local _cursor_idx = 1 -- index into _navigable pointing at the selected node
@@ -34,12 +35,12 @@ local function apply_highlights(lines)
     local lnum = i - 1
     if line:match("^  graphite%.nvim") then
       vim.api.nvim_buf_add_highlight(_buf, NS, "GraphiteHeader", lnum, 0, -1)
-    elseif line:match("^  %[") then
-      vim.api.nvim_buf_add_highlight(_buf, NS, "GraphiteArrow", lnum, 0, -1)
-    elseif line:match("^  ◆") then
+    elseif line:match("^  󰈔") or line:match("^  [◆●]") or line:match("^  %[%d%d%]") then
       -- Highlight the ◆ symbol and filename
       vim.api.nvim_buf_add_highlight(_buf, NS, "GraphiteNode", lnum, 0, -1)
-    elseif line:match("^  [├└]") then
+    elseif line:match("^  %[") then
+      vim.api.nvim_buf_add_highlight(_buf, NS, "GraphiteArrow", lnum, 0, -1)
+    elseif line:match("^  [├└│]") or line:match("^  %[") or line:match("^  [┌┐└┘]") then
       vim.api.nvim_buf_add_highlight(_buf, NS, "GraphiteArrow", lnum, 0, -1)
     end
   end
@@ -113,10 +114,11 @@ local function move_to_child()
     return
   end
   local node = _graph.nodes[key]
-  if not node or #node.deps == 0 then
+  local children = node and (node.deps or node.calls or {}) or {}
+  if #children == 0 then
     return
   end
-  local child_key = node.deps[1]
+  local child_key = children[1]
   local pos = _node_positions[child_key]
   if pos then
     for i, nav in ipairs(_navigable) do
@@ -170,16 +172,31 @@ local function open_current_node()
   vim.cmd("edit " .. vim.fn.fnameescape(node.path))
 end
 
+--- Toggle the active renderer layout and refresh the current graph view.
+local function toggle_layout()
+  if not _graph or not _config then
+    return
+  end
+
+  local selected = current_key()
+  _config.layout = (_config.layout == "graph") and "tree" or "graph"
+  vim.notify("graphite: layout -> " .. _config.layout, vim.log.levels.INFO)
+  M.open(_graph, _config, selected)
+end
+
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 --- Open (or refresh) the graph floating window.
 ---@param graph GraphData
-M.open = function(graph)
+---@param config GraphiteConfig|nil
+---@param focus_key string|nil
+M.open = function(graph, config, focus_key)
   setup_highlights()
   _graph = graph
+  _config = config or { layout = "tree" }
 
   -- Render to lines
-  local lines, node_positions = renderer.render(graph)
+  local lines, node_positions = renderer.render(graph, _config)
   _node_positions = node_positions
 
   -- Build sorted navigable list
@@ -191,6 +208,14 @@ M.open = function(graph)
     return a.row < b.row
   end)
   _cursor_idx = 1
+  if focus_key then
+    for i, nav in ipairs(_navigable) do
+      if nav.key == focus_key then
+        _cursor_idx = i
+        break
+      end
+    end
+  end
 
   -- ── Create / reuse buffer ────────────────────────────────────────────────
   if _buf and vim.api.nvim_buf_is_valid(_buf) then
@@ -242,6 +267,7 @@ M.open = function(graph)
   end, opts)
   vim.keymap.set("n", "l", move_to_child, opts)
   vim.keymap.set("n", "h", move_to_parent, opts)
+  vim.keymap.set("n", "t", toggle_layout, opts)
 
   -- ── Initial render ───────────────────────────────────────────────────────
   apply_highlights(lines)

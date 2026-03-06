@@ -14,8 +14,7 @@ Table of Contents                                        *graphite-contents*
 1. Introduction                                          *graphite-intro*
 
 graphite.nvim visualises the structure of your codebase as an interactive
-dependency graph inside Neovim — similar to Obsidian's graph view but for
-source code.
+dependency graph inside Neovim for source code.
 
 It scans your project, detects import/require/use/mod statements (and
 optionally function calls via Tree-sitter), builds an in-memory graph, and
@@ -51,7 +50,7 @@ All options are optional. >lua
 
 `max_files`       Maximum files to scan (default: 1000).
 `auto_refresh`    When true, :GraphiteOpen always rescans (default: false).
-`layout`          Layout algorithm — "tree" only for now (default: "tree").
+`layout`          Layout algorithm: "tree" or "graph" (default: "tree").
 `ignore_patterns` Lua patterns for paths to exclude from scanning.
 
 ==============================================================================
@@ -81,6 +80,7 @@ All options are optional. >lua
     j / k       Move to the next / previous node
     l           Jump to the first dependency of the selected node
     h           Jump to the first node that imports the selected node
+    t           Toggle layout ("tree" <-> "graph")
     <Enter>     Open the selected file in the editor
     q / <Esc>   Close the graph window
 
