@@ -69,13 +69,30 @@ end
 M.parsers.rs = function(content)
   local deps = {}
   for line in line_iter(content) do
-    local dep = line:match("^%s*mod%s+([%w_]+)%s*;")
+    local dep = line:match("^%s*pub%s*%b()%s*mod%s+([%w_]+)%s*;")
+      or line:match("^%s*pub%s+mod%s+([%w_]+)%s*;")
+      or line:match("^%s*mod%s+([%w_]+)%s*;")
     if dep then
       table.insert(deps, dep)
     end
-    dep = line:match("^%s*use%s+([%w_:]+)")
-    if dep then
-      table.insert(deps, dep)
+
+    local use_dep = line:match("^%s*pub%s*%b()%s*use%s+([^;]+)")
+      or line:match("^%s*pub%s+use%s+([^;]+)")
+      or line:match("^%s*use%s+([^;]+)")
+    if use_dep then
+      use_dep = use_dep:gsub("^%s+", ""):gsub("%s+$", "")
+      use_dep = use_dep:gsub("%s+as%s+[%w_]+%s*$", "")
+
+      local brace_prefix = use_dep:match("^([%w_:%./]+)%s*::%s*%b{}")
+      if brace_prefix then
+        use_dep = brace_prefix
+      end
+      use_dep = use_dep:gsub("::%s*%*$", "")
+      use_dep = use_dep:gsub("%s+", "")
+
+      if use_dep ~= "" then
+        table.insert(deps, use_dep)
+      end
     end
   end
   return deps

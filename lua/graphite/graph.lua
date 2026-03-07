@@ -57,6 +57,7 @@ local SUPPORTED_EXTS = {
 ---@return string|nil
 local function resolve_dep(dep, from_file, file_index)
   local from_dir = from_file:match("^(.*)/[^/]+$") or ""
+  local from_ext = util.get_extension(from_file)
   local exts = {
     "lua",
     "js",
@@ -101,6 +102,37 @@ local function resolve_dep(dep, from_file, file_index)
   end
 
   local candidates = {}
+  local is_rust_context = from_ext == "rs"
+
+  local function add_rust_module_candidates(module_path, base_prefix, include_root_prefixes)
+    if not module_path or module_path == "" then
+      return
+    end
+
+    local raw = module_path
+    if base_prefix and base_prefix ~= "" then
+      raw = base_prefix .. "/" .. raw
+    end
+
+    local normalized = normalize(raw)
+    local parts = {}
+    for part in normalized:gmatch("[^/]+") do
+      table.insert(parts, part)
+    end
+
+    for i = #parts, 1, -1 do
+      local p = table.concat(parts, "/", 1, i)
+      if include_root_prefixes then
+        for _, prefix in ipairs({ "", "src/", "lib/" }) do
+          table.insert(candidates, prefix .. p .. ".rs")
+          table.insert(candidates, prefix .. p .. "/mod.rs")
+        end
+      else
+        table.insert(candidates, p .. ".rs")
+        table.insert(candidates, p .. "/mod.rs")
+      end
+    end
+  end
 
   if dep:match("^%.") then
     -- Relative import (JS/TS style: ./foo or ../bar)
@@ -109,23 +141,83 @@ local function resolve_dep(dep, from_file, file_index)
       table.insert(candidates, base .. "." .. ext)
       table.insert(candidates, base .. "/index." .. ext)
     end
+    if is_rust_context then
+      table.insert(candidates, base .. "/mod.rs")
+    end
     table.insert(candidates, base) -- dep already has an extension
   else
     -- Absolute / module-style import
-    -- Convert separators used in common module systems.
-    local as_path = dep:gsub("::", "/"):gsub("%.", "/"):gsub("\\", "/")
+    -- Convert separators used in common module systems while preserving
+    -- literal dots in file names (e.g. "foo.h").
+    local raw_as_path = dep:gsub("::", "/"):gsub("\\", "/")
+    local dotted_as_path = raw_as_path:gsub("%.", "/")
+    local path_variants = { raw_as_path }
+    if dotted_as_path ~= raw_as_path then
+      table.insert(path_variants, dotted_as_path)
+    end
+
+    if is_rust_context then
+      local rust_dep = dep:gsub("%s+", "")
+      rust_dep = rust_dep:gsub("::%*$", "")
+
+      local brace_prefix = rust_dep:match("^([%w_:%./]+)::%b{}$")
+      if brace_prefix then
+        rust_dep = brace_prefix
+      end
+
+      if rust_dep:match("^crate::") then
+        add_rust_module_candidates(rust_dep:gsub("^crate::", ""):gsub("::", "/"), nil, true)
+      elseif rust_dep:match("^self::") then
+        add_rust_module_candidates(rust_dep:gsub("^self::", ""):gsub("::", "/"), from_dir, false)
+      elseif rust_dep:match("^super::") then
+        local levels = 0
+        local rest = rust_dep
+        while rest:match("^super::") do
+          levels = levels + 1
+          rest = rest:gsub("^super::", "", 1)
+        end
+        local base = from_dir
+        for _ = 1, levels do
+          base = base:match("^(.*)/[^/]+$") or ""
+        end
+        add_rust_module_candidates(rest:gsub("::", "/"), base, false)
+      elseif not rust_dep:match("^std::") and not rust_dep:match("^core::") and not rust_dep:match("^alloc::") then
+        local mod_path = rust_dep:gsub("::", "/")
+        add_rust_module_candidates(mod_path, nil, true)
+        add_rust_module_candidates(mod_path, from_dir, false)
+      end
+    end
 
     -- Try various root-relative prefixes
-    local prefixes = { "", "lua/", "src/", "lib/" }
+    local prefixes = {
+      "",
+      "lua/",
+      "src/",
+      "lib/",
+      "src/main/java/",
+      "src/test/java/",
+      "src/main/kotlin/",
+      "src/test/kotlin/",
+    }
     for _, prefix in ipairs(prefixes) do
-      for _, ext in ipairs(exts) do
-        table.insert(candidates, prefix .. as_path .. "." .. ext)
+      for _, path_variant in ipairs(path_variants) do
+        table.insert(candidates, prefix .. path_variant) -- dep already has extension
+        for _, ext in ipairs(exts) do
+          table.insert(candidates, prefix .. path_variant .. "." .. ext)
+          table.insert(candidates, prefix .. path_variant .. "/index." .. ext)
+        end
       end
     end
 
     -- Rust mod: sibling file in the same directory
-    for _, ext in ipairs(exts) do
-      table.insert(candidates, normalize(from_dir .. "/" .. as_path .. "." .. ext))
+    for _, path_variant in ipairs(path_variants) do
+      table.insert(candidates, normalize(from_dir .. "/" .. path_variant))
+      for _, ext in ipairs(exts) do
+        table.insert(candidates, normalize(from_dir .. "/" .. path_variant .. "." .. ext))
+      end
+      if is_rust_context then
+        table.insert(candidates, normalize(from_dir .. "/" .. path_variant .. "/mod.rs"))
+      end
     end
   end
 

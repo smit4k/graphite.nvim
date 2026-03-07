@@ -67,6 +67,23 @@ describe("parser.parsers.go", function()
   end)
 end)
 
+describe("parser.parsers.rs", function()
+  it("extracts mod/use variants", function()
+    local deps = parser.parsers.rs([[
+pub mod models;
+pub(crate) mod db;
+use crate::db::connect;
+pub use crate::models::{User, Role};
+use super::cache::Store as CacheStore;
+]])
+    assert.truthy(vim.tbl_contains(deps, "models"))
+    assert.truthy(vim.tbl_contains(deps, "db"))
+    assert.truthy(vim.tbl_contains(deps, "crate::db::connect"))
+    assert.truthy(vim.tbl_contains(deps, "crate::models"))
+    assert.truthy(vim.tbl_contains(deps, "super::cache::Store"))
+  end)
+end)
+
 describe("parser.parsers.java/kt/scala/cs/swift", function()
   it("extracts dotted imports/usings", function()
     local deps = parser.parsers.java("import a.b.C;\nimport static d.e.F;\n")
@@ -216,6 +233,103 @@ describe("graph.focus", function()
   end)
 end)
 
+describe("graph.build (rust)", function()
+  local function write_file(path, content)
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+    local f = assert(io.open(path, "w"))
+    f:write(content)
+    f:close()
+  end
+
+  it("resolves Rust use/mod deps to .rs and mod.rs files", function()
+    graph.clear()
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+
+    write_file(
+      root .. "/src/main.rs",
+      [[
+pub mod models;
+mod db;
+use crate::db::connect;
+pub use crate::models::{Role, User};
+]]
+    )
+    write_file(root .. "/src/db.rs", "pub fn connect() {}\n")
+    write_file(root .. "/src/models/mod.rs", "pub struct User;\npub struct Role;\n")
+
+    local g = graph.build(root, { max_files = 100, ignore_patterns = {} })
+    local main = g.nodes["src/main.rs"]
+
+    assert.truthy(main, "expected src/main.rs node")
+    assert.truthy(vim.tbl_contains(main.deps, "src/db.rs"))
+    assert.truthy(vim.tbl_contains(main.deps, "src/models/mod.rs"))
+
+    vim.fn.delete(root, "rf")
+  end)
+end)
+
+describe("graph.build (cross-language)", function()
+  local function write_file(path, content)
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+    local f = assert(io.open(path, "w"))
+    f:write(content)
+    f:close()
+  end
+
+  it("resolves Java dotted imports to project files", function()
+    graph.clear()
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+
+    write_file(root .. "/src/main/java/app/Main.java", "import app.services.UserService;\nclass Main {}\n")
+    write_file(root .. "/src/main/java/app/services/UserService.java", "package app.services;\nclass UserService {}\n")
+
+    local g = graph.build(root, { max_files = 100, ignore_patterns = {} })
+    local main = g.nodes["src/main/java/app/Main.java"]
+
+    assert.truthy(main, "expected src/main/java/app/Main.java node")
+    assert.truthy(vim.tbl_contains(main.deps, "src/main/java/app/services/UserService.java"))
+
+    vim.fn.delete(root, "rf")
+  end)
+
+  it("resolves C/C++ include paths with file extensions", function()
+    graph.clear()
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+
+    write_file(root .. "/src/main.cpp", '#include "app.h"\nint main() { return 0; }\n')
+    write_file(root .. "/src/app.h", "int answer();\n")
+
+    local g = graph.build(root, { max_files = 100, ignore_patterns = {} })
+    local main = g.nodes["src/main.cpp"]
+
+    assert.truthy(main, "expected src/main.cpp node")
+    assert.truthy(vim.tbl_contains(main.deps, "src/app.h"))
+
+    vim.fn.delete(root, "rf")
+  end)
+
+  it("renders TypeScript cyclic imports without overflow", function()
+    graph.clear()
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+
+    write_file(root .. "/src/a.ts", 'import { b } from "./b"\nexport const a = b\n')
+    write_file(root .. "/src/b.ts", 'import { a } from "./a"\nexport const b = a\n')
+
+    local g = graph.build(root, { max_files = 100, ignore_patterns = {} })
+    local ok, lines = pcall(renderer.render, g)
+
+    assert.truthy(ok, lines)
+    assert.truthy(#g.edges >= 2, "expected cyclic TS edges")
+    assert.truthy(#lines > 0)
+
+    vim.fn.delete(root, "rf")
+  end)
+end)
+
 -- ── renderer ─────────────────────────────────────────────────────────────────
 
 describe("renderer.render", function()
@@ -270,6 +384,23 @@ describe("renderer.render", function()
     assert.truthy(combined:find("[01]", 1, true))
     assert.not_nil(positions["a.lua"])
     assert.not_nil(positions["b.lua"])
+  end)
+
+  it("renders cyclic dependency graphs without overflowing", function()
+    local g = {
+      nodes = {
+        ["a.rs"] = { path = "/a.rs", label = "a.rs", deps = { "b.rs" } },
+        ["b.rs"] = { path = "/b.rs", label = "b.rs", deps = { "a.rs" } },
+      },
+      edges = {
+        { from = "a.rs", to = "b.rs" },
+        { from = "b.rs", to = "a.rs" },
+      },
+    }
+
+    local ok, lines = pcall(renderer.render, g)
+    assert.truthy(ok, lines)
+    assert.truthy(#lines > 0)
   end)
 
   it("does not render transitive edges as direct edges in graph routing", function()

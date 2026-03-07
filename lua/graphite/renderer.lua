@@ -38,9 +38,10 @@ local function compute_layers(graph)
 
   local layer = {}
   local queue = {}
+  local max_layer = 1
   for key in pairs(graph.nodes) do
+    layer[key] = 1
     if in_degree[key] == 0 then
-      layer[key] = 1
       table.insert(queue, key)
     end
   end
@@ -59,16 +60,25 @@ local function compute_layers(graph)
     head = head + 1
     for _, child in ipairs(adj[node]) do
       local new_layer = (layer[node] or 1) + 1
-      if not layer[child] or layer[child] < new_layer then
+      if (layer[child] or 1) < new_layer then
         layer[child] = new_layer
+        if new_layer > max_layer then
+          max_layer = new_layer
+        end
+      end
+
+      in_degree[child] = (in_degree[child] or 0) - 1
+      if in_degree[child] == 0 then
         table.insert(queue, child)
       end
     end
   end
 
+  -- Cycle-safe fallback: nodes left with in-degree > 0 are in one or more
+  -- cycles. Assign them a stable layer so sorting/rendering can proceed.
   for key in pairs(graph.nodes) do
-    if not layer[key] then
-      layer[key] = 1
+    if (in_degree[key] or 0) > 0 then
+      layer[key] = math.max(layer[key] or 1, max_layer + 1)
     end
   end
 
